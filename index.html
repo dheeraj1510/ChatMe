@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #f0f0f0, #d9e4f5);
+      padding: 20px;
+      margin: 0;
+    }
+
+    h2 {
+      text-align: center;
+      color: #333;
+    }
+
+    #login, #chat {
+      max-width: 500px;
+      margin: 40px auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0px 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    input[type="text"], select {
+      width: calc(100% - 20px);
+      padding: 10px;
+      margin: 10px 0;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+
+    button {
+      padding: 10px 20px;
+      background: #4a90e2;
+      color: white;
+      border: none;
+      font-size: 16px;
+      border-radius: 5px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+    }
+
+    button:hover {
+      background: #357acc;
+    }
+
+    #chat-box {
+      border: 1px solid #ccc;
+      height: 300px;
+      overflow-y: scroll;
+      margin: 15px 0;
+      padding: 10px;
+      background: #f9f9f9;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    #chat-box div {
+      margin-bottom: 10px;
+    }
+
+    #chat-box div b {
+      color: #2b65d9;
+    }
+
+    #msg {
+      width: calc(100% - 100px);
+      display: inline-block;
+    }
+
+    #send-btn {
+      width: 80px;
+      display: inline-block;
+      margin-left: 10px;
+    }
+
+    #current-user {
+      font-weight: bold;
+      color: #333;
+    }
+
+    label {
+      display: block;
+      margin-top: 10px;
+      color: #555;
+    }
+
+    @media only screen and (max-width: 600px) {
+      #msg, #send-btn {
+        width: 100%;
+        margin: 5px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div id="login">
+    <h2>ChatMe</h2>
+    <input type="text" id="username" placeholder="Enter your name" />
+    <button id="lbtn">Login</button>
+  </div>
+
+  <div id="chat" style="display:none;">
+    <button onclick="logout()" style="float: right; background: #ff4d4d;">Logout</button>
+    <p>Welcome, <span id="current-user"></span> 👋</p>
+
+    <label>Chat with:</label>
+    <select id="user-list"></select>
+
+    <div id="chat-box"></div>
+
+    <input type="text" id="msg" placeholder="Type message here..." />
+    <button id="send-btn" onclick="sendMessage()">Send</button>
+  </div>
+
+<script>
+  var lbtn = document.querySelector("#lbtn");
+  
+const apiUrl = "https://script.google.com/macros/s/AKfycbwlqDeaLLwfaK5CsYH6iaqMd1ADflwKfUDSiPQd19e_Ci9EczXVyy-PdI02XhniTiV3ow/exec";
+let currentUser = "";
+let selectedUser = "";
+let userManuallySelected = false;
+
+document.getElementById("user-list").addEventListener("change", (e) => {
+  userManuallySelected = true;
+  selectedUser = e.target.value;
+  loadMessages();
+});
+
+lbtn.addEventListener("click",
+async function handleLogin() {
+  currentUser = document.getElementById("username").value.trim();
+  if (!currentUser) return alert("Enter name");
+
+  await fetch(apiUrl, {
+    method: "POST",
+    body: JSON.stringify({ action: "saveUser", username: currentUser })
+  });
+
+  document.getElementById("login").style.display = "none";
+  document.getElementById("chat").style.display = "block";
+  document.getElementById("current-user").innerText = currentUser;
+  localStorage.setItem("chatUser", currentUser);
+
+  fetchUsers();
+  setInterval(fetchUsers, 5000);
+  setInterval(() => {
+    if (selectedUser) loadMessages();
+  }, 3000);
+  setInterval(checkNewMessages, 3000);
+}
+)
+
+async function fetchUsers() {
+  const res = await fetch(apiUrl, {
+    method: "POST",
+    body: JSON.stringify({ action: "getUsers" })
+  });
+  const users = await res.json();
+  const list = document.getElementById("user-list");
+  const currentSelection = selectedUser || list.value;
+
+  list.innerHTML = "";
+  users.forEach(user => {
+    if (user !== currentUser) {
+      const opt = document.createElement("option");
+      opt.value = user;
+      opt.innerText = user;
+      list.appendChild(opt);
+    }
+  });
+
+  if (currentSelection) {
+    list.value = currentSelection;
+    selectedUser = currentSelection;
+  }
+}
+
+async function sendMessage() {
+  const msg = document.getElementById("msg").value.trim();
+  if (!msg || !selectedUser) return;
+
+  await fetch(apiUrl, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "sendMessage",
+      sender: currentUser,
+      receiver: selectedUser,
+      message: msg
+    })
+  });
+
+  document.getElementById("msg").value = "";
+  loadMessages();
+}
+
+async function loadMessages() {
+  if (!selectedUser) return;
+  const res = await fetch(apiUrl, {
+    method: "POST",
+    body: JSON.stringify({
+      action: "getMessages",
+      user1: currentUser,
+      user2: selectedUser
+    })
+  });
+
+  const chats = await res.json();
+  const box = document.getElementById("chat-box");
+  box.innerHTML = "";
+  chats.forEach(row => {
+    box.innerHTML += `<div><b>${row[1]}:</b> ${row[3]}</div>`;
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+async function checkNewMessages() {
+  const res = await fetch(apiUrl, {
+    method: "POST",
+    body: JSON.stringify({ action: "getMessages", user1: currentUser, user2: "" })
+  });
+  const chats = await res.json();
+
+  const newSenders = new Set();
+  chats.forEach(row => {
+    if (row[2] === currentUser) {
+      newSenders.add(row[1]);
+    }
+  });
+
+  const list = document.getElementById("user-list");
+  for (let option of list.options) {
+    if (newSenders.has(option.value)) {
+      option.text = `${option.value} 🔔`;
+    } else {
+      option.text = option.value.replace(" 🔔", "");
+    }
+  }
+
+  if (!userManuallySelected && newSenders.size > 0) {
+    selectedUser = [...newSenders][0];
+    list.value = selectedUser;
+    loadMessages();
+  }
+}
+
+function logout() {
+  localStorage.removeItem("chatUser");
+  userManuallySelected = false;
+  selectedUser = "";
+  location.reload();
+}
+
+window.onload = function () {
+  const savedUser = localStorage.getItem("chatUser");
+  if (savedUser) {
+    currentUser = savedUser;
+    document.getElementById("login").style.display = "none";
+    document.getElementById("chat").style.display = "block";
+    document.getElementById("current-user").innerText = currentUser;
+    fetchUsers();
+    setInterval(fetchUsers, 5000);
+    setInterval(() => {
+      if (selectedUser) loadMessages();
+    }, 3000);
+    setInterval(checkNewMessages, 3000);
+  }
+}
+</script>
+</body>
+</html>
